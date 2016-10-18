@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical" >
+
+    <!-- layout dialog content -->
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <android.support.v4.view.ViewPager
+            android:id="@+id/viewpager_advertisement"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+        </android.support.v4.view.ViewPager>
+
+        <android.support.design.widget.TabLayout
+            android:id="@+id/tab_layout_advertisement"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:tabBackground="@drawable/tab_selector"
+            app:tabGravity="center"
+            android:layout_gravity="bottom"
+            app:tabIndicatorHeight="0dp"/>
+    </FrameLayout>
+    <!-- layout dialog buttons -->
+
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/done"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:padding="8dp"
+            android:textSize="16dp"
+            android:text="Got It"
+            android:layout_alignParentRight="true"
+            android:layout_gravity="right"
+            android:layout_marginRight="8dp"
+            android:clickable="true"
+            android:background="?attr/selectableItemBackground"
+            android:textAllCaps="true"
+            android:textColor="#009688" />
+
+        <TextView
+            android:id="@+id/nevershow"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:gravity="center"
+            android:layout_marginRight="8dp"
+            android:layout_toLeftOf="@id/done"
+            android:text="Never Show Again"
+            android:padding="8dp"
+            android:textSize="16sp"
+            android:textColor="#009688"
+            android:textAllCaps="true"
+            android:clickable="true"
+            android:layout_gravity="right"
+            android:background="?attr/selectableItemBackground"  />
+
+    </RelativeLayout>
+
+</LinearLayout>

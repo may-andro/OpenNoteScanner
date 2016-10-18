@@ -1,5 +1,6 @@
 package com.todobom.opennotescanner.helpers;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.app.DownloadManager;
@@ -175,6 +176,7 @@ public class CustomOpenCVLoader extends OpenCVLoader {
             if (isNonPlayAppAllowed) {
                 askInstallOpenCV.setNeutralButton(R.string.githubdownload, new DialogInterface.OnClickListener() {
 
+                    @SuppressLint("NewApi")
                     String arch = Build.SUPPORTED_ABIS[0];
 
                     public void onClick(DialogInterface dialog, int which) {

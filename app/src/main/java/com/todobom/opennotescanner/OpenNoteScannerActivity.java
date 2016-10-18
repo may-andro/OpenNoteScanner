@@ -3,15 +3,17 @@ package com.todobom.opennotescanner;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.ActionBar;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.hardware.Camera;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.ExifInterface;
 import android.media.MediaPlayer;
@@ -24,32 +26,46 @@ import android.os.HandlerThread;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.provider.MediaStore;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
+import android.support.design.widget.TabLayout;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.DialogFragment;
+import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.view.ViewPager;
+import android.support.v4.view.animation.FastOutSlowInInterpolator;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Display;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
+import android.view.animation.AnimationUtils;
 import android.view.animation.ScaleAnimation;
 import android.view.animation.TranslateAnimation;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ViewFlipper;
 
 import com.github.fafaldo.fabtoolbar.widget.FABToolbarLayout;
-import com.todobom.opennotescanner.helpers.AboutFragment;
 import com.todobom.opennotescanner.helpers.CustomOpenCVLoader;
 import com.todobom.opennotescanner.helpers.OpenNoteMessage;
 import com.todobom.opennotescanner.helpers.PreviewFrame;
@@ -74,8 +90,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import uk.co.samuelwall.materialtaptargetprompt.MaterialTapTargetPrompt;
 
 import static com.todobom.opennotescanner.helpers.Utils.addImageToGallery;
 import static com.todobom.opennotescanner.helpers.Utils.decodeSampledBitmapFromUri;
@@ -86,7 +105,7 @@ import static com.todobom.opennotescanner.helpers.Utils.decodeSampledBitmapFromU
  */
 public class OpenNoteScannerActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener , SurfaceHolder.Callback,
-        Camera.PictureCallback, Camera.PreviewCallback {
+        Camera.PictureCallback, Camera.PreviewCallback,SensorEventListener {
 
     /**
      * Some older devices needs a small delay between UI widget updates
@@ -145,7 +164,8 @@ public class OpenNoteScannerActivity extends AppCompatActivity
     private MediaPlayer _shootMP = null;
 
     private boolean safeToTakePicture;
-    private Button scanDocButton;
+    Button scanDocButton;
+    TextView textViewWrongAngle,textViewWrongMessage1,textViewWrongMessage2,textViewMessage;
     private HandlerThread mImageThread;
     private ImageProcessor mImageProcessor;
     private SurfaceHolder mSurfaceHolder;
@@ -169,6 +189,47 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
     private boolean imageProcessorBusy=true;
 
+    SensorManager mSensorManager;
+    Sensor mAccelerometer;
+    Sensor mMagnetometer;
+    private float[] mGravity;
+    private float[] mMagnetic;
+    float[] value = new float[3];
+
+    private SurfaceView mSurfaceView;
+
+    private boolean scanClicked = false;
+
+    private boolean colorMode = false;
+    private boolean filterMode = true;
+
+    private boolean autoMode = true;
+    private boolean mFlashMode = false;
+
+    FloatingActionButton fabToolbarButton;
+    FloatingActionButton galleryButton;
+    ImageView autoModeButton,infoButton,filterModeButton,flashModeButton;
+
+    ViewFlipper mFlipper;
+
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS: {
+                    checkResumePermissions();
+                }
+                break;
+                default: {
+                    Log.d(TAG, "opencvstatus: "+status);
+                    super.onManagerConnected(status);
+                }
+                break;
+            }
+        }
+    };
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -176,13 +237,16 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         mSharedPref = PreferenceManager.getDefaultSharedPreferences(this);
 
         if (mSharedPref.getBoolean("isFirstRun",true) && !mSharedPref.getBoolean("usage_stats",false)) {
-            statsOptInDialog();
+            /*statsOptInDialog();*/
+            CustomAlertDialogFragment customAlertDialogFragment = new CustomAlertDialogFragment(this);
+            customAlertDialogFragment.show( getSupportFragmentManager(), "");
         }
 
-        ((OpenNoteScannerApplication) getApplication()).getTracker()
-                .trackScreenView("/OpenNoteScannerActivity", "Main Screen");
-
         setContentView(R.layout.activity_open_note_scanner);
+
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mMagnetometer = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
 
         mVisible = true;
         mControlsView = findViewById(R.id.fullscreen_content_controls);
@@ -203,7 +267,18 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
         Display display = getWindowManager().getDefaultDisplay();
         android.graphics.Point size = new android.graphics.Point();
-        display.getRealSize(size);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            display.getRealSize(size);
+        }
+
+        textViewMessage = (TextView)findViewById(R.id.text_message);
+
+        textViewWrongAngle = (TextView)findViewById(R.id.text_wrong_angle);
+        textViewWrongAngle.setText("For best experience, place camera and the document on horizontal level.");
+        textViewWrongMessage1 = (TextView)findViewById(R.id.text_wrong_message);
+        textViewWrongMessage1.setText("Use caontrastical background.");
+        textViewWrongMessage2 = (TextView)findViewById(R.id.text_wrong_message2);
+        textViewWrongMessage2.setText("Couldn't find document. Go closer.");
 
         scanDocButton = (Button) findViewById(R.id.scanDocButton);
 
@@ -211,52 +286,35 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
             @Override
             public void onClick(View v) {
-                if (scanClicked) {
+                requestPicture();
+                waitSpinnerVisible();
+                /*if (scanClicked) {
                     requestPicture();
-                    scanDocButton.setBackgroundTintList(null);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        scanDocButton.setBackgroundTintList(null);
+                    }
                     waitSpinnerVisible();
                 } else {
                     scanClicked = true;
                     Toast.makeText(getApplicationContext(), R.string.scanningToast, Toast.LENGTH_LONG).show();
-                    v.setBackgroundTintList(ColorStateList.valueOf(0x7F60FF60));
-                }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        v.setBackgroundTintList(ColorStateList.valueOf(0x7F60FF60));
+                    }
+                }*/
             }
         });
 
-        final ImageView infoButton = (ImageView) findViewById(R.id.infoButton);
+        infoButton = (ImageView) findViewById(R.id.infoButton);
         infoButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
             public void onClick(View v) {
-                FragmentManager fm = getSupportFragmentManager();
-                AboutFragment aboutDialog = new AboutFragment();
-                aboutDialog.setRunOnDetach(new Runnable() {
-                    @Override
-                    public void run() {
-                        hide();
-                    }
-                });
-                aboutDialog.show(fm, "about_view");
+                CustomAlertDialogFragment customAlertDialogFragment = new CustomAlertDialogFragment(OpenNoteScannerActivity.this);
+                customAlertDialogFragment.show( getSupportFragmentManager(), "");
             }
         });
 
-        final ImageView colorModeButton = (ImageView) findViewById(R.id.colorModeButton);
-
-        colorModeButton.setOnClickListener(new View.OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                colorMode = !colorMode;
-                ((ImageView)v).setColorFilter(colorMode ? 0xFFFFFFFF : 0xFFA0F0A0);
-
-                sendImageProcessorMessage("colorMode" , colorMode );
-
-                Toast.makeText(getApplicationContext(), colorMode?R.string.colorMode:R.string.bwMode, Toast.LENGTH_SHORT).show();
-
-            }
-        });
-
-        final ImageView filterModeButton = (ImageView) findViewById(R.id.filterModeButton);
+        filterModeButton = (ImageView) findViewById(R.id.filterModeButton);
 
         filterModeButton.setOnClickListener(new View.OnClickListener() {
 
@@ -272,7 +330,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             }
         });
 
-        final ImageView flashModeButton = (ImageView) findViewById(R.id.flashModeButton);
+        flashModeButton = (ImageView) findViewById(R.id.flashModeButton);
 
         flashModeButton.setOnClickListener(new View.OnClickListener() {
 
@@ -285,7 +343,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         });
 
 
-        final ImageView autoModeButton = (ImageView) findViewById(R.id.autoModeButton);
+        autoModeButton = (ImageView) findViewById(R.id.autoModeButton);
 
         autoModeButton.setOnClickListener(new View.OnClickListener() {
 
@@ -297,30 +355,20 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             }
         });
 
-        final ImageView settingsButton = (ImageView) findViewById(R.id.settingsButton);
-
-        settingsButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(v.getContext() , SettingsActivity.class);
-                startActivity(intent);
-            }
-        });
-
-        final FloatingActionButton galleryButton = (FloatingActionButton) findViewById(R.id.galleryButton);
+        galleryButton = (FloatingActionButton) findViewById(R.id.galleryButton);
 
         galleryButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(v.getContext() , GalleryGridActivity.class);
+                Intent intent = new Intent(v.getContext() , FullScreenViewActivity.class);
                 startActivity(intent);
             }
         });
 
         mFabToolbar = (FABToolbarLayout) findViewById(R.id.fabtoolbar);
 
-        FloatingActionButton fabToolbarButton = (FloatingActionButton) findViewById(R.id.fabtoolbar_fab);
+        fabToolbarButton = (FloatingActionButton) findViewById(R.id.fabtoolbar_fab);
         fabToolbarButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -335,170 +383,24 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             }
         });
 
+        mFlipper = ((ViewFlipper) findViewById(R.id.flipper));
+        mFlipper.startFlipping();
+        mFlipper.setInAnimation(AnimationUtils.loadAnimation(this,android.R.anim.fade_in));
+        mFlipper.setOutAnimation(AnimationUtils.loadAnimation(this, android.R.anim.fade_out));
+
+
+
+        //setGalleryIntroLogic();
     }
-
-    public boolean setFlash(boolean stateFlash) {
-        PackageManager pm = getPackageManager();
-        if (pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)) {
-            Camera.Parameters par = mCamera.getParameters();
-            par.setFlashMode(stateFlash ? Camera.Parameters.FLASH_MODE_TORCH : Camera.Parameters.FLASH_MODE_OFF);
-            mCamera.setParameters(par);
-            Log.d(TAG, "flash: " + (stateFlash ? "on" : "off"));
-            return stateFlash;
-        }
-        return false;
-    }
-
-    private void checkResumePermissions() {
-        if (ContextCompat.checkSelfPermission( this,
-                Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA},
-                    RESUME_PERMISSIONS_REQUEST_CAMERA);
-
-        } else {
-            enableCameraView();
-        }
-    }
-
-    private void checkCreatePermissions() {
-
-        if (ContextCompat.checkSelfPermission( this,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                    MY_PERMISSIONS_REQUEST_WRITE);
-
-        }
-
-    }
-
-
-    public void turnCameraOn() {
-        mSurfaceView = (SurfaceView) findViewById(R.id.surfaceView);
-
-        mSurfaceHolder = mSurfaceView.getHolder();
-
-        mSurfaceHolder.addCallback(this);
-        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-
-        mSurfaceView.setVisibility(SurfaceView.VISIBLE);
-    }
-
-    public void enableCameraView() {
-        if (mSurfaceView == null) {
-            turnCameraOn();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case CREATE_PERMISSIONS_REQUEST_CAMERA: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    turnCameraOn();
-                }
-                break;
-            }
-
-            case RESUME_PERMISSIONS_REQUEST_CAMERA: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    enableCameraView();
-                }
-                break;
-            }
-
-            // other 'case' lines to check for other
-            // permissions this app might request
-        }
-    }
-
-
-    @Override
-    protected void onPostCreate(Bundle savedInstanceState) {
-        super.onPostCreate(savedInstanceState);
-
-        // Trigger the initial hide() shortly after the activity has been
-        // created, to briefly hint to the user that UI controls
-        // are available.
-        delayedHide(100);
-    }
-
-    private void toggle() {
-        if (mVisible) {
-            hide();
-        } else {
-            show();
-        }
-    }
-
-    private void hide() {
-        // Hide UI first
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            actionBar.hide();
-        }
-        mControlsView.setVisibility(View.GONE);
-        mVisible = false;
-
-        // Schedule a runnable to remove the status and navigation bar after a delay
-        mHideHandler.removeCallbacks(mShowPart2Runnable);
-        mHideHandler.postDelayed(mHidePart2Runnable, UI_ANIMATION_DELAY);
-    }
-
-    @SuppressLint("InlinedApi")
-    private void show() {
-        mVisible = true;
-
-        // Schedule a runnable to display UI elements after a delay
-        mHideHandler.removeCallbacks(mHidePart2Runnable);
-        mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
-    }
-
-    /**
-     * Schedules a call to hide() in [delay] milliseconds, canceling any
-     * previously scheduled calls.
-     */
-    private void delayedHide(int delayMillis) {
-        mHideHandler.removeCallbacks(mHideRunnable);
-        mHideHandler.postDelayed(mHideRunnable, delayMillis);
-    }
-
-
-    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
-        @Override
-        public void onManagerConnected(int status) {
-            switch (status) {
-                case LoaderCallbackInterface.SUCCESS: {
-                    checkResumePermissions();
-                }
-                break;
-                default: {
-                    Log.d(TAG, "opencvstatus: "+status);
-                    super.onManagerConnected(status);
-                }
-                break;
-            }
-        }
-    };
-
-
-
 
     @Override
     public void onResume() {
         super.onResume();
+
+        scanDocButton.setEnabled(false);
+
+        mSensorManager.registerListener(this, mAccelerometer,SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorManager.registerListener(this, mMagnetometer,SensorManager.SENSOR_DELAY_NORMAL);
 
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN
@@ -510,10 +412,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         );
 
         Log.d(TAG, "resuming");
-
-        for ( String build: Build.SUPPORTED_ABIS) {
-            Log.d(TAG,"myBuild "+ build);
-        }
 
         checkCreatePermissions();
 
@@ -531,122 +429,35 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
     }
 
-    public void waitSpinnerVisible() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mWaitSpinner.setVisibility(View.VISIBLE);
-            }
-        });
-    }
-
-    public void waitSpinnerInvisible() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mWaitSpinner.setVisibility(View.GONE);
-            }
-        });
-    }
-
-    private SurfaceView mSurfaceView;
-
-    private boolean scanClicked = false;
-
-    private boolean colorMode = false;
-    private boolean filterMode = true;
-
-    private boolean autoMode = false;
-    private boolean mFlashMode = false;
-
-
     @Override
     public void onPause() {
         super.onPause();
+        mSensorManager.unregisterListener(this);
     }
 
-    public void onDestroy() {
-        super.onDestroy();
-        // FIXME: check disableView()
-    }
-
-    public List<Camera.Size> getResolutionList() {
-        return mCamera.getParameters().getSupportedPreviewSizes();
-    }
-
-    public Camera.Size getMaxPreviewResolution() {
-        int maxWidth=0;
-        Camera.Size curRes=null;
-
-        mCamera.lock();
-
-        for ( Camera.Size r: getResolutionList() ) {
-            if (r.width>maxWidth) {
-                Log.d(TAG,"supported preview resolution: "+r.width+"x"+r.height);
-                maxWidth=r.width;
-                curRes=r;
-            }
-        }
-
-        return curRes;
-    }
-
-
-    public List<Camera.Size> getPictureResolutionList() {
-        return mCamera.getParameters().getSupportedPictureSizes();
-    }
-
-    public Camera.Size getMaxPictureResolution(float previewRatio) {
-        int maxPixels=0;
-        int ratioMaxPixels=0;
-        Camera.Size currentMaxRes=null;
-        Camera.Size ratioCurrentMaxRes=null;
-        for ( Camera.Size r: getPictureResolutionList() ) {
-            float pictureRatio = (float) r.width / r.height;
-            Log.d(TAG,"supported picture resolution: "+r.width+"x"+r.height+" ratio: "+pictureRatio);
-            int resolutionPixels = r.width * r.height;
-
-            if (resolutionPixels>ratioMaxPixels && pictureRatio == previewRatio) {
-                ratioMaxPixels=resolutionPixels;
-                ratioCurrentMaxRes=r;
-            }
-
-            if (resolutionPixels>maxPixels) {
-                maxPixels=resolutionPixels;
-                currentMaxRes=r;
-            }
-        }
-
-        boolean matchAspect = mSharedPref.getBoolean("match_aspect", true);
-
-        if (ratioCurrentMaxRes!=null && matchAspect) {
-
-            Log.d(TAG,"Max supported picture resolution with preview aspect ratio: "
-                    + ratioCurrentMaxRes.width+"x"+ratioCurrentMaxRes.height);
-            return ratioCurrentMaxRes;
-
-        }
-
-        return currentMaxRes;
-    }
-
-
-    private int findBestCamera() {
-        int cameraId = -1;
-        //Search for the back facing camera
-        //get the number of cameras
-        int numberOfCameras = Camera.getNumberOfCameras();
-        //for every camera check
-        for (int i = 0; i < numberOfCameras; i++) {
-            Camera.CameraInfo info = new Camera.CameraInfo();
-            Camera.getCameraInfo(i, info);
-            if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
-                cameraId = i;
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        switch (event.sensor.getType())
+        {
+            case Sensor.TYPE_ACCELEROMETER:
+                mGravity = lowPass(event.values.clone(), mGravity);
                 break;
-            }
-            cameraId = i;
+            case Sensor.TYPE_MAGNETIC_FIELD:
+                mMagnetic = lowPass(event.values.clone(), mMagnetic);
+                break;
+            default:
+                return;
         }
-        return cameraId;
+
+        if (mGravity != null && mMagnetic != null)
+        {
+            getDirection();
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int i) {
+
     }
 
     @Override
@@ -671,7 +482,9 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
         Display display = getWindowManager().getDefaultDisplay();
         android.graphics.Point size = new android.graphics.Point();
-        display.getRealSize(size);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            display.getRealSize(size);
+        }
 
         int displayWidth = Math.min(size.y, size.x);
         int displayHeight = Math.max(size.y, size.x);
@@ -750,13 +563,15 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         }
 
         try {
-            mCamera.setAutoFocusMoveCallback(new Camera.AutoFocusMoveCallback() {
-                @Override
-                public void onAutoFocusMoving(boolean start, Camera camera) {
-                    mFocused = !start;
-                    Log.d(TAG, "focusMoving: " + mFocused);
-                }
-            });
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                mCamera.setAutoFocusMoveCallback(new Camera.AutoFocusMoveCallback() {
+                    @Override
+                    public void onAutoFocusMoving(boolean start, Camera camera) {
+                        mFocused = !start;
+                        Log.d(TAG, "focusMoving: " + mFocused);
+                    }
+                });
+            }
         } catch (Exception e) {
             Log.d(TAG, "failed setting AutoFocusMoveCallback");
         }
@@ -774,24 +589,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         refreshCamera();
     }
 
-    private void refreshCamera() {
-        try {
-            mCamera.stopPreview();
-        }
-
-        catch (Exception e) {
-        }
-
-        try {
-            mCamera.setPreviewDisplay(mSurfaceHolder);
-
-            mCamera.startPreview();
-            mCamera.setPreviewCallback(this);
-        }
-        catch (Exception e) {
-        }
-    }
-
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         if (mCamera != null) {
@@ -800,57 +597,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             mCamera.release();
             mCamera = null;
         }
-    }
-
-    @Override
-    public void onPreviewFrame(byte[] data, Camera camera) {
-
-        android.hardware.Camera.Size pictureSize = camera.getParameters().getPreviewSize();
-
-        Log.d(TAG, "onPreviewFrame - received image " + pictureSize.width + "x" + pictureSize.height
-                + " focused: "+ mFocused +" imageprocessor: "+(imageProcessorBusy?"busy":"available"));
-
-        if ( mFocused && ! imageProcessorBusy ) {
-            setImageProcessorBusy(true);
-            Mat yuv = new Mat(new Size(pictureSize.width, pictureSize.height * 1.5), CvType.CV_8UC1);
-            yuv.put(0, 0, data);
-
-            Mat mat = new Mat(new Size(pictureSize.width, pictureSize.height), CvType.CV_8UC4);
-            Imgproc.cvtColor(yuv, mat, Imgproc.COLOR_YUV2RGBA_NV21, 4);
-
-            yuv.release();
-
-            sendImageProcessorMessage("previewFrame", new PreviewFrame( mat, autoMode, !(autoMode || scanClicked) ));
-        }
-
-    }
-
-    public void invalidateHUD() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mHud.invalidate();
-            }
-        });
-    }
-
-    private class ResetShutterColor implements Runnable {
-        @Override
-        public void run() {
-            scanDocButton.setBackgroundTintList(null);
-        }
-    }
-
-    private ResetShutterColor resetShutterColor = new ResetShutterColor();
-
-    public boolean requestPicture() {
-        if (safeToTakePicture) {
-            runOnUiThread(resetShutterColor);
-            safeToTakePicture = false;
-            mCamera.takePicture(null, null, this);
-            return true;
-        }
-        return false;
     }
 
     @Override
@@ -872,6 +618,425 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         safeToTakePicture = true;
 
     }
+
+    @Override
+    public void onPreviewFrame(byte[] data, Camera camera) {
+
+        android.hardware.Camera.Size pictureSize = camera.getParameters().getPreviewSize();
+
+        Log.d(TAG, "onPreviewFrame - received image " + pictureSize.width + "x" + pictureSize.height
+                + " focused: "+ mFocused +" imageprocessor: "+(imageProcessorBusy?"busy":"available"));
+
+        if ( mFocused && ! imageProcessorBusy ) {
+            setImageProcessorBusy(true);
+            Mat yuv = new Mat(new Size(pictureSize.width, pictureSize.height * 1.5), CvType.CV_8UC1);
+            yuv.put(0, 0, data);
+
+            Mat mat = new Mat(new Size(pictureSize.width, pictureSize.height), CvType.CV_8UC4);
+            Imgproc.cvtColor(yuv, mat, Imgproc.COLOR_YUV2RGBA_NV21, 4);
+
+            yuv.release();
+
+            sendImageProcessorMessage("previewFrame", new PreviewFrame( mat, autoMode, (autoMode ) ));
+        }
+
+    }
+
+    @Override
+    protected void onPostCreate(Bundle savedInstanceState) {
+        super.onPostCreate(savedInstanceState);
+
+        // Trigger the initial hide() shortly after the activity has been
+        // created, to briefly hint to the user that UI controls
+        // are available.
+        delayedHide(100);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case CREATE_PERMISSIONS_REQUEST_CAMERA: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    turnCameraOn();
+                }
+                break;
+            }
+
+            case RESUME_PERMISSIONS_REQUEST_CAMERA: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    enableCameraView();
+                }
+                break;
+            }
+
+            // other 'case' lines to check for other
+            // permissions this app might request
+        }
+    }
+
+    ///////////////////sensor/////////////////////
+    private float getDirection() {
+        float[] temp = new float[9];
+        float[] R = new float[9];
+        // Load rotation matrix into R
+        SensorManager.getRotationMatrix(temp, null, mGravity, mMagnetic);
+        // Remap to camera's point-of-view
+        SensorManager.remapCoordinateSystem(temp, SensorManager.AXIS_X,	SensorManager.AXIS_Z, R);
+        // Return the orientation values
+        SensorManager.getOrientation(R, value);
+
+        //System.out.println("OpenNoteScannerActivity.getDirection="+Math.abs(Math.toDegrees(value[1])) );
+
+        if( Math.abs(Math.toDegrees(value[1])) > 70.0  &&  Math.abs(Math.toDegrees(value[1]))<87.0 ){
+            if(autoMode){
+                scanDocButton.setVisibility(View.GONE);
+                mFlipper.setVisibility(View.GONE);
+            }else{
+                scanDocButton.setVisibility(View.VISIBLE);
+                mFlipper.setVisibility(View.GONE);
+            }
+        }else{
+            if(autoMode){
+                scanDocButton.setVisibility(View.GONE);
+                mFlipper.setVisibility(View.GONE);
+            }else{
+                scanDocButton.setVisibility(View.GONE);
+                mFlipper.setVisibility(View.VISIBLE);
+            }
+        }
+
+        return value[1];
+    }
+
+    protected float[] lowPass(float[] input, float[] output) {
+        if (output == null)
+            return input;
+
+        for (int i = 0; i < input.length; i++) {
+            output[i] = output[i] + 0.8f * (input[i] - output[i]);
+        }
+        return output;
+    }
+
+    //////////////////marshmellow permission////////////////
+    private void checkResumePermissions() {
+        if (ContextCompat.checkSelfPermission( this,
+                Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.CAMERA},
+                    RESUME_PERMISSIONS_REQUEST_CAMERA);
+
+        } else {
+            enableCameraView();
+        }
+    }
+
+    private void checkCreatePermissions() {
+
+        if (ContextCompat.checkSelfPermission( this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    MY_PERMISSIONS_REQUEST_WRITE);
+
+        }
+
+    }
+
+    //////////////////Camera Utility Methods///////////////
+    public boolean setFlash(boolean stateFlash) {
+        PackageManager pm = getPackageManager();
+        if (pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)) {
+            Camera.Parameters par = mCamera.getParameters();
+            par.setFlashMode(stateFlash ? Camera.Parameters.FLASH_MODE_TORCH : Camera.Parameters.FLASH_MODE_OFF);
+            mCamera.setParameters(par);
+            Log.d(TAG, "flash: " + (stateFlash ? "on" : "off"));
+            return stateFlash;
+        }
+        return false;
+    }
+
+    public void turnCameraOn() {
+        mSurfaceView = (SurfaceView) findViewById(R.id.surfaceView);
+
+        mSurfaceHolder = mSurfaceView.getHolder();
+
+        mSurfaceHolder.addCallback(this);
+        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+
+        mSurfaceView.setVisibility(SurfaceView.VISIBLE);
+    }
+
+    public void enableCameraView() {
+        if (mSurfaceView == null) {
+            turnCameraOn();
+        }
+    }
+
+    public List<Camera.Size> getResolutionList() {
+        return mCamera.getParameters().getSupportedPreviewSizes();
+    }
+
+    public Camera.Size getMaxPreviewResolution() {
+        int maxWidth=0;
+        Camera.Size curRes=null;
+
+        mCamera.lock();
+
+        for ( Camera.Size r: getResolutionList() ) {
+            if (r.width>maxWidth) {
+                Log.d(TAG,"supported preview resolution: "+r.width+"x"+r.height);
+                maxWidth=r.width;
+                curRes=r;
+            }
+        }
+
+        return curRes;
+    }
+
+    public List<Camera.Size> getPictureResolutionList() {
+        return mCamera.getParameters().getSupportedPictureSizes();
+    }
+
+    public Camera.Size getMaxPictureResolution(float previewRatio) {
+        int maxPixels=0;
+        int ratioMaxPixels=0;
+        Camera.Size currentMaxRes=null;
+        Camera.Size ratioCurrentMaxRes=null;
+        for ( Camera.Size r: getPictureResolutionList() ) {
+            float pictureRatio = (float) r.width / r.height;
+            Log.d(TAG,"supported picture resolution: "+r.width+"x"+r.height+" ratio: "+pictureRatio);
+            int resolutionPixels = r.width * r.height;
+
+            if (resolutionPixels>ratioMaxPixels && pictureRatio == previewRatio) {
+                ratioMaxPixels=resolutionPixels;
+                ratioCurrentMaxRes=r;
+            }
+
+            if (resolutionPixels>maxPixels) {
+                maxPixels=resolutionPixels;
+                currentMaxRes=r;
+            }
+        }
+
+        boolean matchAspect = mSharedPref.getBoolean("match_aspect", true);
+
+        if (ratioCurrentMaxRes!=null && matchAspect) {
+
+            Log.d(TAG,"Max supported picture resolution with preview aspect ratio: "
+                    + ratioCurrentMaxRes.width+"x"+ratioCurrentMaxRes.height);
+            return ratioCurrentMaxRes;
+
+        }
+
+        return currentMaxRes;
+    }
+
+    private int findBestCamera() {
+        int cameraId = -1;
+        //Search for the back facing camera
+        //get the number of cameras
+        int numberOfCameras = Camera.getNumberOfCameras();
+        //for every camera check
+        for (int i = 0; i < numberOfCameras; i++) {
+            Camera.CameraInfo info = new Camera.CameraInfo();
+            Camera.getCameraInfo(i, info);
+            if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
+                cameraId = i;
+                break;
+            }
+            cameraId = i;
+        }
+        return cameraId;
+    }
+
+    private void refreshCamera() {
+        try {
+            mCamera.stopPreview();
+        }
+
+        catch (Exception e) {
+        }
+
+        try {
+            mCamera.setPreviewDisplay(mSurfaceHolder);
+
+            mCamera.startPreview();
+            mCamera.setPreviewCallback(this);
+        }
+        catch (Exception e) {
+        }
+    }
+
+    public void showButton(){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                scanDocButton.setEnabled(true);
+            }
+        });
+        System.out.println("OpenNoteScannerActivity.showButton");
+    }
+
+    public void hideButton(){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                scanDocButton.setEnabled(false);
+                System.out.println("OpenNoteScannerActivity.hideButton");
+            }
+        });
+    }
+
+    public void displayMessage(final String msg){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                textViewMessage.setText(msg);
+            }
+        });
+    }
+
+    private void toggle() {
+        if (mVisible) {
+            hide();
+        } else {
+            show();
+        }
+    }
+
+    private void hide() {
+        // Hide UI first
+        ActionBar actionBar = getActionBar();
+        if (actionBar != null) {
+            actionBar.hide();
+        }
+        mControlsView.setVisibility(View.GONE);
+        mVisible = false;
+
+        // Schedule a runnable to remove the status and navigation bar after a delay
+        mHideHandler.removeCallbacks(mShowPart2Runnable);
+        mHideHandler.postDelayed(mHidePart2Runnable, UI_ANIMATION_DELAY);
+    }
+
+    @SuppressLint("InlinedApi")
+    private void show() {
+        mVisible = true;
+
+        // Schedule a runnable to display UI elements after a delay
+        mHideHandler.removeCallbacks(mHidePart2Runnable);
+        mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
+    }
+
+    /**
+     * Schedules a call to hide() in [delay] milliseconds, canceling any
+     * previously scheduled calls.
+     */
+    private void delayedHide(int delayMillis) {
+        mHideHandler.removeCallbacks(mHideRunnable);
+        mHideHandler.postDelayed(mHideRunnable, delayMillis);
+    }
+
+
+    public void waitSpinnerVisible() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mWaitSpinner.setVisibility(View.VISIBLE);
+                scanDocButton.setEnabled(false);
+            }
+        });
+
+    }
+
+    public void waitTimerVisible(final String text) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                scanDocButton.setText(text);
+            }
+        });
+
+    }
+
+    public void showToast(final String text) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                final Toast toast = Toast.makeText(getApplicationContext(), text, Toast.LENGTH_SHORT);
+                toast.setGravity(Gravity.CENTER, 0, 0);
+                toast.show();
+
+                Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        toast.cancel();
+                    }
+                }, 500);
+            }
+        });
+
+    }
+
+    public void waitSpinnerInvisible() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mWaitSpinner.setVisibility(View.GONE);
+                scanDocButton.setEnabled(true);
+            }
+        });
+    }
+
+
+
+
+
+    public void invalidateHUD() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mHud.invalidate();
+            }
+        });
+    }
+
+
+
+    private class ResetShutterColor implements Runnable {
+        @Override
+        public void run() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                scanDocButton.setBackgroundTintList(null);
+            }
+        }
+    }
+
+    private ResetShutterColor resetShutterColor = new ResetShutterColor();
+
+    public boolean requestPicture() {
+        if (safeToTakePicture) {
+            runOnUiThread(resetShutterColor);
+            safeToTakePicture = false;
+            try {
+                mCamera.takePicture(null, null, this);
+            }catch (Exception e){
+               Toast.makeText(OpenNoteScannerActivity.this,"Failed to click the picture.",Toast.LENGTH_LONG).show();
+            }
+            return true;
+        }
+        return false;
+    }
+
 
     public void sendImageProcessorMessage(String messageText , Object obj ) {
         Log.d(TAG,"sending message to ImageProcessor: "+messageText+" - "+obj.toString());
@@ -972,9 +1137,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             addImageToGallery(fileName , this);
         }
 
-        // Record goal "PictureTaken"
-        ((OpenNoteScannerApplication) getApplication()).getTracker().trackGoal(1);
-
         refreshCamera();
 
     }
@@ -1009,7 +1171,9 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
             Display display = getWindowManager().getDefaultDisplay();
             android.graphics.Point size = new android.graphics.Point();
-            display.getRealSize(size);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                display.getRealSize(size);
+            }
 
             int width = Math.min(size.x, size.y);
             int height = Math.max(size.x, size.y);
@@ -1126,39 +1290,250 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         return false;
     }
 
+    @SuppressLint("ValidFragment")
+    class CustomAlertDialogFragment extends DialogFragment {
 
-    private void statsOptInDialog() {
-        AlertDialog.Builder statsOptInDialog = new AlertDialog.Builder(this);
+        Context context;
+        public CustomAlertDialogFragment(Context context){
+            this.context= context;
+        }
 
-        statsOptInDialog.setTitle(getString(R.string.stats_optin_title));
-        statsOptInDialog.setMessage(getString(R.string.stats_optin_text));
+        @Override
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+            View rootView = inflater.inflate(R.layout.dialog_layout_for_instruction_message, container);
 
-        statsOptInDialog.setPositiveButton(R.string.answer_yes, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                mSharedPref.edit().putBoolean("usage_stats",true).commit();
-                mSharedPref.edit().putBoolean("isFirstRun",false).commit();
-                dialog.dismiss();
-            }
-        });
+            ViewPager viewPager = (ViewPager) rootView.findViewById(R.id.viewpager_advertisement);
+            TabLayout tabLayoutAdvertisement = (TabLayout) rootView.findViewById(R.id.tab_layout_advertisement);
+            ViewPagerAdapter adapter = new ViewPagerAdapter(getChildFragmentManager());
+            adapter.addFrag(new FragmentForWelcomePage1());
+            adapter.addFrag(new FragmentForWelcomePage1());
+            adapter.addFrag(new FragmentForWelcomePage1());
+            viewPager.setAdapter(adapter);
 
-        statsOptInDialog.setNegativeButton(R.string.answer_no, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                mSharedPref.edit().putBoolean("usage_stats",false).commit();
-                mSharedPref.edit().putBoolean("isFirstRun",false).commit();
-                dialog.dismiss();
-            }
-        });
+            tabLayoutAdvertisement.setupWithViewPager(viewPager);
 
-        statsOptInDialog.setNeutralButton(R.string.answer_later, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-            }
-        });
+            TextView done = (TextView) rootView.findViewById(R.id.done);
+            done.setText("Got It");
+            done.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    mSharedPref.edit().putBoolean("usage_stats",false).commit();
+                    mSharedPref.edit().putBoolean("isFirstRun",false).commit();
+                    dismiss();
+                }
+            });
 
-        statsOptInDialog.create().show();
+            TextView neverShow = (TextView) rootView.findViewById(R.id.nevershow);
+            neverShow.setText("Never Show Again");
+            neverShow.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    mSharedPref.edit().putBoolean("usage_stats",true).commit();
+                    mSharedPref.edit().putBoolean("isFirstRun",false).commit();
+                    dismiss();
+                }
+            });
+
+            getDialog().setOnKeyListener(new DialogInterface.OnKeyListener() {
+                public boolean onKey(DialogInterface dialog, int keyCode,
+                                     KeyEvent event) {
+                    if (keyCode == KeyEvent.KEYCODE_BACK) {
+                        dialog.dismiss();
+                        return true;
+                    }
+                    return false;
+                }
+            });
+            getDialog().setCanceledOnTouchOutside(false);
+            getDialog().getWindow().requestFeature(Window.FEATURE_NO_TITLE);
+
+
+
+            return rootView;
+        }
+        @Override
+        public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+            super.onViewCreated(view, savedInstanceState);
+
+        }
+
     }
 
+    public class ViewPagerAdapter extends FragmentPagerAdapter
+    {
+        private final List<Fragment> mFragmentList = new ArrayList<Fragment>();
+
+        public ViewPagerAdapter(FragmentManager manager)
+        {
+            super(manager);
+        }
+
+        @Override
+        public Fragment getItem(int position)
+        {
+            return mFragmentList.get(position);
+        }
+
+        @Override
+        public int getCount()
+        {
+            return mFragmentList.size();
+        }
+
+        public void addFrag(Fragment fragment)
+        {
+            mFragmentList.add(fragment);
+        }
+
+
+    }
+
+
+    @SuppressLint("ValidFragment")
+    public class FragmentForWelcomePage1 extends Fragment{
+
+        TextView titleFragment1,messageFragment1;
+
+        @Override
+        @Nullable
+        public View onCreateView(LayoutInflater inflater,
+                                 @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+            View view =inflater.inflate(R.layout.fragmentinstructionpage1, container,false);
+
+            titleFragment1=(TextView) view.findViewById(R.id.titleFragment);
+            titleFragment1.setText("Instruction");
+            messageFragment1=(TextView) view.findViewById(R.id.messageFragment);
+            messageFragment1.setText("1.Place the document in contastical background. /n2.Click the menu icon for more configurable options. /n3.Gallery button takes you to your pictures.");
+
+            return view;
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if(mWaitSpinner.getVisibility()==View.VISIBLE){
+
+        }else{
+            super.onBackPressed();
+        }
+    }
+
+
+    private MaterialTapTargetPrompt gellaryTargetPromptBuilder;
+    private void setGalleryIntroLogic(){
+        gellaryTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+                .setTarget(galleryButton)
+                .setPrimaryText("Your Pictures")
+                .setSecondaryText("You can access your clicked images here.")
+                .setAnimationInterpolator(new FastOutSlowInInterpolator())
+                .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
+                .setOnHidePromptListener(new MaterialTapTargetPrompt.OnHidePromptListener()
+                {
+                    @Override
+                    public void onHidePrompt(MotionEvent event, boolean tappedTarget) {
+
+                    }
+                    @Override
+                    public void onHidePromptComplete()
+                    {
+                        mFabToolbar.show();
+                        setautoSettingIntroLogic();
+                    }
+                })
+                .show();
+    }
+
+    private MaterialTapTargetPrompt autoSettingTargetPromptBuilder;
+    private void setautoSettingIntroLogic(){
+        autoSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+                .setTarget(autoModeButton)
+                .setPrimaryText("Auto Mode")
+                .setSecondaryText("This will capture images automatically when there is a contastical background.")
+                .setAnimationInterpolator(new FastOutSlowInInterpolator())
+                .setIcon(R.drawable.ic_find_in_page)
+                .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
+                .setOnHidePromptListener(new MaterialTapTargetPrompt.OnHidePromptListener()
+                {
+                    @Override
+                    public void onHidePrompt(MotionEvent event, boolean tappedTarget) {
+
+                    }
+                    @Override
+                    public void onHidePromptComplete()
+                    {
+                        setFlashSettingIntroLogic();
+                    }
+                })
+                .show();
+    }
+
+    private MaterialTapTargetPrompt flashSettingTargetPromptBuilder;
+    private void setFlashSettingIntroLogic(){
+        processingSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+                .setTarget(flashModeButton)
+                .setPrimaryText("Camera Flash")
+                .setSecondaryText("You can turn on your camera flash using this button.")
+                .setAnimationInterpolator(new FastOutSlowInInterpolator())
+                .setIcon(R.drawable.ic_flash_on_24dp)
+                .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
+                .setOnHidePromptListener(new MaterialTapTargetPrompt.OnHidePromptListener()
+                {
+                    @Override
+                    public void onHidePrompt(MotionEvent event, boolean tappedTarget) {
+
+                    }
+                    @Override
+                    public void onHidePromptComplete()
+                    {
+                        setProcessingSettingIntroLogic();
+                    }
+                })
+                .show();
+    }
+
+    private MaterialTapTargetPrompt processingSettingTargetPromptBuilder;
+    private void setProcessingSettingIntroLogic(){
+        processingSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+                .setTarget(filterModeButton)
+                .setPrimaryText("Image Filtering.")
+                .setSecondaryText("You can enable this to filter images.")
+                .setAnimationInterpolator(new FastOutSlowInInterpolator())
+                .setIcon(R.drawable.ic_photo_filter_white_24dp)
+                .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
+                .setOnHidePromptListener(new MaterialTapTargetPrompt.OnHidePromptListener()
+                {
+                    @Override
+                    public void onHidePrompt(MotionEvent event, boolean tappedTarget) {
+
+                    }
+                    @Override
+                    public void onHidePromptComplete()
+                    {
+                        setInfoSettingIntroLogic();
+                    }
+                })
+                .show();
+    }
+
+    private MaterialTapTargetPrompt infoSettingTargetPromptBuilder;
+    private void setInfoSettingIntroLogic(){
+        infoSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+                .setTarget(infoButton)
+                .setPrimaryText("Tutorial")
+                .setSecondaryText("You can visit tutorial to underatnad the upload process..")
+                .setAnimationInterpolator(new FastOutSlowInInterpolator())
+                .setIcon(R.drawable.ic_info_outline_white_24px)
+                .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
+                .setOnHidePromptListener(new MaterialTapTargetPrompt.OnHidePromptListener()
+                {
+                    @Override
+                    public void onHidePrompt(MotionEvent event, boolean tappedTarget) {
+
+                    }
+                    @Override
+                    public void onHidePromptComplete()
+                    {
+
+                    }
+                })
+                .show();
+    }
 }

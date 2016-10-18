@@ -38,15 +38,7 @@
             android:layout_gravity="bottom|center_horizontal"
             android:background="@color/black_overlay"
             android:orientation="vertical">
-            <!--
-            <Button
-                android:id="@+id/dummy_button"
-                style="?metaButtonBarButtonStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/dummy_button" />
-             -->
+
         </FrameLayout>
 
     </FrameLayout>
@@ -55,7 +47,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="left|center_vertical"
-        >
+        android:paddingTop="30dp">
 
         <ImageView
             android:layout_width="0px"
@@ -175,18 +167,6 @@
                     android:tint="#ffffff"/>
 
                 <ImageView
-                    android:id="@+id/colorModeButton"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_palette"
-                    android:gravity="center"
-                    android:enabled="true"
-                    android:focusableInTouchMode="false"
-                    android:tint="#a0f0a0"/>
-
-                <ImageView
                     android:id="@+id/filterModeButton"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
@@ -218,17 +198,6 @@
                     android:src="@drawable/ic_find_in_page"
                     android:gravity="center"
                     android:enabled="true"
-                    android:tint="#a0f0a0"/>
-
-                <ImageView
-                    android:id="@+id/settingsButton"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/ic_settings"
-                    android:gravity="center"
-                    android:enabled="true"
                     android:tint="#ffffff"/>
 
                 <ImageView
@@ -258,19 +227,60 @@
         <ProgressBar
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:indeterminate="true" />
+            android:indeterminate="true"
+            />
 
     </RelativeLayout>
 
     <Button
         android:id="@+id/scanDocButton"
         android:layout_gravity="center_horizontal|bottom"
-        android:layout_width="70dp"
-        android:layout_height="70dp"
-        android:background="@drawable/ic_camera_green"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:layout_marginBottom="50dp"
+        android:background="@color/colorAccent"
+        android:text="Capture"
         android:gravity="center"
-        android:enabled="true"
-        />
+        android:enabled="true" />
+
+    <ViewFlipper
+        android:id="@+id/flipper"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:flipInterval="6000"
+        android:gravity="center"
+        android:layout_marginBottom="50dp"
+        android:layout_gravity="center_horizontal|bottom"
+        android:padding="20dp" >
+
+        <TextView
+            android:id="@+id/text_wrong_angle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#00000000"
+            android:gravity="center"
+            android:textColor="@color/colorPrimary"
+            android:textStyle="normal" />
+
+        <TextView
+            android:id="@+id/text_wrong_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#00000000"
+            android:gravity="center"
+            android:textColor="@color/colorPrimary"
+            android:textStyle="normal" />
+
+        <TextView
+            android:id="@+id/text_wrong_message2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#00000000"
+            android:gravity="center"
+            android:textColor="@color/colorPrimary"
+            android:textStyle="normal" />
+    </ViewFlipper>
 
     <LinearLayout
         android:orientation="vertical"
@@ -280,5 +290,16 @@
 
 
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/text_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#00000000"
+        android:gravity="center"
+        android:padding="16dp"
+        android:layout_gravity="center_vertical"
+        android:textColor="@color/colorAccent"
+        android:textStyle="normal" />
 
 </FrameLayout>
