@@ -2,7 +2,6 @@ package com.todobom.opennotescanner;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.ActionBar;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -51,7 +50,6 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
@@ -63,7 +61,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.github.fafaldo.fabtoolbar.widget.FABToolbarLayout;
-import com.todobom.opennotescanner.helpers.CustomOpenCVLoader;
 import com.todobom.opennotescanner.helpers.OpenNoteMessage;
 import com.todobom.opennotescanner.helpers.PreviewFrame;
 import com.todobom.opennotescanner.helpers.ScannedDocument;
@@ -155,10 +152,10 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
     private boolean scanClicked = false;
 
-    private boolean colorMode = false;
-    private boolean filterMode = true;
+    private boolean colorMode = true;
+    private boolean filterMode = false;
 
-    private boolean autoMode = true;
+    private boolean autoMode = false;
     private boolean mFlashMode = false;
 
     FloatingActionButton fabToolbarButton;
@@ -181,7 +178,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             }
         }
     };
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -206,7 +202,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         textViewMessage = (TextView)findViewById(R.id.text_message);
 
         scanDocButton = (ImageView) findViewById(R.id.scanDocButton);
-
         scanDocButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -312,8 +307,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
     public void onResume() {
         super.onResume();
 
-        //scanDocButton.setEnabled(false);
-
         mSensorManager.registerListener(this, mAccelerometer,SensorManager.SENSOR_DELAY_NORMAL);
         mSensorManager.registerListener(this, mMagnetometer,SensorManager.SENSOR_DELAY_NORMAL);
 
@@ -321,7 +314,14 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
         checkCreatePermissions();
 
-        CustomOpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_1_0, this, mLoaderCallback);
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_1_0, this, mLoaderCallback);
+        } else {
+            Log.d(TAG, "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
+        //CustomOpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_1_0, this, mLoaderCallback);
 
         if (mImageThread == null ) {
             mImageThread = new HandlerThread("Worker Thread");
@@ -389,7 +389,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         Display display = getWindowManager().getDefaultDisplay();
         android.graphics.Point size = new android.graphics.Point();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            //display.getRealSize(size);
+            display.getRealSize(size);
         }
 
         int displayWidth = Math.min(size.y, size.x);
@@ -400,15 +400,41 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         int previewHeight = displayHeight;
 
         if ( displayRatio > previewRatio ) {
-            //ViewGroup.LayoutParams surfaceParams = mSurfaceView.getLayoutParams();
+            ViewGroup.LayoutParams surfaceParams = mWaitSpinner.getLayoutParams();
             previewHeight = (int) ( (float) size.y/displayRatio*previewRatio);
-            //surfaceParams.height = previewHeight;
+            surfaceParams.height = previewHeight;
             //mSurfaceView.setLayoutParams(surfaceParams);
 
             mHud.getLayoutParams().height = previewHeight;
         }
 
-        int hotAreaWidth = displayWidth / 4;
+        int hotAreaWidth = displayWidth / 5;
+        int hotAreaHeight = previewHeight / 4 - hotAreaWidth;
+
+        ImageView angleNorthWest = (ImageView) findViewById(R.id.nw_angle);
+        RelativeLayout.LayoutParams paramsNW = (RelativeLayout.LayoutParams) angleNorthWest.getLayoutParams();
+        paramsNW.leftMargin = hotAreaWidth - paramsNW.width;
+        paramsNW.topMargin = hotAreaHeight - paramsNW.height;
+        angleNorthWest.setLayoutParams(paramsNW);
+
+        ImageView angleNorthEast = (ImageView) findViewById(R.id.ne_angle);
+        RelativeLayout.LayoutParams paramsNE = (RelativeLayout.LayoutParams) angleNorthEast.getLayoutParams();
+        paramsNE.leftMargin = displayWidth - hotAreaWidth;
+        paramsNE.topMargin = hotAreaHeight - paramsNE.height;
+        angleNorthEast.setLayoutParams(paramsNE);
+
+        ImageView angleSouthEast = (ImageView) findViewById(R.id.se_angle);
+        RelativeLayout.LayoutParams paramsSE = (RelativeLayout.LayoutParams) angleSouthEast.getLayoutParams();
+        paramsSE.leftMargin = displayWidth - hotAreaWidth;
+        paramsSE.topMargin = previewHeight - hotAreaHeight;
+        angleSouthEast.setLayoutParams(paramsSE);
+
+        ImageView angleSouthWest = (ImageView) findViewById(R.id.sw_angle);
+        RelativeLayout.LayoutParams paramsSW = (RelativeLayout.LayoutParams) angleSouthWest.getLayoutParams();
+        paramsSW.leftMargin = hotAreaWidth - paramsSW.width;
+        paramsSW.topMargin = previewHeight - hotAreaHeight;
+        angleSouthWest.setLayoutParams(paramsSW);
+
 
         Camera.Size maxRes = getMaxPictureResolution(previewRatio);
         if ( maxRes != null) {
@@ -804,47 +830,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             }
         });
     }
-
-    /*private void toggle() {
-        if (mVisible) {
-            hide();
-        } else {
-            show();
-        }
-    }*/
-
-    /*private void hide() {
-        // Hide UI first
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            actionBar.hide();
-        }
-        //mControlsView.setVisibility(View.GONE);
-        mVisible = false;
-
-        // Schedule a runnable to remove the status and navigation bar after a delay
-        mHideHandler.removeCallbacks(mShowPart2Runnable);
-        mHideHandler.postDelayed(mHidePart2Runnable, UI_ANIMATION_DELAY);
-    }*/
-
-    /*@SuppressLint("InlinedApi")
-    private void show() {
-        mVisible = true;
-
-        // Schedule a runnable to display UI elements after a delay
-        mHideHandler.removeCallbacks(mHidePart2Runnable);
-        mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
-    }*/
-
-    /**
-     * Schedules a call to hide() in [delay] milliseconds, canceling any
-     * previously scheduled calls.
-     */
-    /*private void delayedHide(int delayMillis) {
-        mHideHandler.removeCallbacks(mHideRunnable);
-        mHideHandler.postDelayed(mHideRunnable, delayMillis);
-    }*/
-
 
     public void waitSpinnerVisible() {
         runOnUiThread(new Runnable() {

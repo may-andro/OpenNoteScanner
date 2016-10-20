@@ -42,11 +42,11 @@ public class ImageProcessor extends Handler {
     private final Handler mUiHandler;
     private final OpenNoteScannerActivity mMainActivity;
     private boolean mBugRotate;
-    private boolean colorMode=false;
-    private boolean filterMode=true;
+    private boolean colorMode=true;
+    private boolean filterMode=false;
     private double colorGain = 1.5;       // contrast
     private double colorBias = 0;         // bright
-    private int colorThresh = 110;        // threshold
+    private int colorThresh = 300;        // threshold
     private Size mPreviewSize;
     private Point[] mPreviewPoints;
 
@@ -96,12 +96,6 @@ public class ImageProcessor extends Handler {
         System.out.println("ImageProcessor.processPreviewFrame autoMode="+autoMode);
         System.out.println("ImageProcessor.processPreviewFrame previewOnly="+previewOnly);
 
-        /*if(detectPreviewDocument(frame)){
-            mMainActivity.showButton();
-        }else{
-            mMainActivity.hideButton();
-        }*/
-
         if ( detectPreviewDocument(frame) && (autoMode && previewOnly )  ) {
 
             System.out.println("ImageProcessor.processPreviewFrame inside");
@@ -135,17 +129,6 @@ public class ImageProcessor extends Handler {
             mMainActivity.displayMessage("");
 
             System.out.println("ImageProcessor.processPreviewFrame else");
-            /*new CountDownTimer(60000, 1000) {
-                public void onTick(long millisUntilFinished) {
-                    System.out.println("ImageProcessor.processPreviewFrame else onTick");
-                }
-
-                public void onFinish() {
-                    System.out.println("ImageProcessor.processPreviewFrame else onFinish");
-                    mMainActivity.showToast("Use contrastical background");
-                }
-            }.start();*/
-
         }
 
         frame.release();

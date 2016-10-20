@@ -14,7 +14,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="left|center_vertical"
-        android:paddingTop="30dp">
+        android:paddingTop="24dp">
 
         <ImageView
             android:layout_width="0px"
@@ -37,6 +37,7 @@
             android:paddingLeft="0dp"
             />
 
+
         <android.support.design.widget.FloatingActionButton
             android:id="@+id/galleryButton"
             android:layout_width="wrap_content"
@@ -46,12 +47,39 @@
             app:fabSize="mini"
             app:elevation="0sp"
             android:layout_marginRight="30dp"
-            android:layout_marginTop="80dp"
+            android:layout_marginTop="130dp"
             android:layout_alignParentTop="true"
             android:layout_alignParentRight="true"
             android:backgroundTint="@color/colorPrimary"
             android:tint="#ffffff"/>
 -
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:id="@+id/nw_angle"
+            android:src="@drawable/angle"
+            android:rotation="90"/>
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:id="@+id/se_angle"
+            android:src="@drawable/angle"
+            android:rotation="270" />
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:id="@+id/sw_angle"
+            android:src="@drawable/angle" />
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:id="@+id/ne_angle"
+            android:src="@drawable/angle"
+            android:rotation="180"/>
+
         <com.github.fafaldo.fabtoolbar.widget.FABToolbarLayout
             android:id="@+id/fabtoolbar"
             android:layout_width="match_parent"
@@ -59,6 +87,7 @@
             app:showDuration="600"
             app:hideDuration="200"
             app:horizontalMargin="30dp"
+            android:layout_marginTop="30dp"
             app:verticalMargin="30dp"
             app:fadeInFraction="0.2"
             app:fabId="@+id/fabtoolbar_fab"
@@ -68,9 +97,8 @@
             <RelativeLayout
                 android:id="@id/fabtoolbar_container"
                 android:layout_width="match_parent"
-                android:layout_alignParentTop="true"
                 android:layout_height="70dp"
-                >
+                android:layout_alignParentTop="true">
 
                 <android.support.design.widget.FloatingActionButton
                     android:id="@id/fabtoolbar_fab"
@@ -115,7 +143,7 @@
                     android:gravity="center"
                     android:enabled="true"
                     android:focusableInTouchMode="false"
-                    android:tint="#ffffff"/>
+                    android:tint="#a0f0a0"/>
 
                 <ImageView
                     android:id="@+id/flashModeButton"
@@ -137,7 +165,7 @@
                     android:src="@drawable/ic_find_in_page"
                     android:gravity="center"
                     android:enabled="true"
-                    android:tint="#ffffff"/>
+                    android:tint="#a0f0a0"/>
 
                 <ImageView
                     android:id="@+id/hideToolbarButton"
@@ -177,7 +205,7 @@
         android:layout_width="90dp"
         android:layout_height="90dp"
         android:padding="16dp"
-        android:layout_marginBottom="50dp"
+        android:layout_marginBottom="16dp"
         android:text=""
         android:layout_weight="1"
         android:scaleType="centerInside"
@@ -197,4 +225,10 @@
         android:textColor="@color/colorAccent"
         android:textStyle="normal" />
 
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="40dp"
+        android:layout_height="24dp"
+        android:layout_gravity="right">
+    </LinearLayout>
 </FrameLayout>
