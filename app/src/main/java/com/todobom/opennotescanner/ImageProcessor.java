@@ -1,24 +1,20 @@
 package com.todobom.opennotescanner;
 
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.drawable.shapes.PathShape;
-import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.todobom.opennotescanner.helpers.OpenNoteMessage;
 import com.todobom.opennotescanner.helpers.PreviewFrame;
 import com.todobom.opennotescanner.helpers.Quadrilateral;
 import com.todobom.opennotescanner.helpers.ScannedDocument;
-import com.todobom.opennotescanner.helpers.Utils;
 import com.todobom.opennotescanner.views.HUDCanvasView;
 
 import org.opencv.core.Core;
@@ -36,8 +32,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
 
 /**
  * Created by allgood on 05/03/16.
@@ -102,11 +96,11 @@ public class ImageProcessor extends Handler {
         System.out.println("ImageProcessor.processPreviewFrame autoMode="+autoMode);
         System.out.println("ImageProcessor.processPreviewFrame previewOnly="+previewOnly);
 
-        if(detectPreviewDocument(frame)){
+        /*if(detectPreviewDocument(frame)){
             mMainActivity.showButton();
         }else{
             mMainActivity.hideButton();
-        }
+        }*/
 
         if ( detectPreviewDocument(frame) && (autoMode && previewOnly )  ) {
 
@@ -114,7 +108,7 @@ public class ImageProcessor extends Handler {
 
             if(count>0){
                 count--;
-                mMainActivity.showToast("Finding document...");
+                mMainActivity.showToast("Document found...");
             }
             else{
                 mMainActivity.showToast("Don't Move.Hold it right there");
@@ -123,6 +117,16 @@ public class ImageProcessor extends Handler {
 
                 mMainActivity.requestPicture();
 
+                count = 2;
+            }
+
+
+        }else if ( detectPreviewDocument(frame) && (!autoMode)  ) {
+            if(count>0){
+                count--;
+                mMainActivity.showToast("Document found...");
+            }
+            else{
                 count = 2;
             }
 
@@ -196,13 +200,33 @@ public class ImageProcessor extends Handler {
         return sd.setProcessed(doc);
     }
 
+    int contourCount = 3;
     private boolean detectPreviewDocument(Mat inputRgba) {
 
         System.out.println("1ImageProcessor.detectPreviewDocument");
 
         ArrayList<MatOfPoint> contours = findContours(inputRgba);
 
+        if(contours.size()==0){
+            if(contourCount == 0){
+                mMainActivity.showToast("No document found");
+                contourCount = 50;
+            }
+            contourCount = contourCount - 1;
+        }else{
+            if(contourCount == 25){
+                mMainActivity.showToast("Choose a contrast background.");
+            }
+            if(contourCount==0){
+                contourCount=50;
+            }
+            contourCount = contourCount - 1;
+        }
+
         Quadrilateral quad = getQuadrilateral(contours, inputRgba.size());
+
+        System.out.println("ImageProcessor.detectPreviewDocument quad="+quad);
+
 
         mPreviewPoints = null;
         mPreviewSize = inputRgba.size();
@@ -429,7 +453,6 @@ public class ImageProcessor extends Handler {
     }
 
     private Mat fourPointTransform( Mat src , Point[] pts ) {
-
         double ratio = src.size().height / 500;
 
         Point tl = pts[0];
@@ -442,7 +465,6 @@ public class ImageProcessor extends Handler {
 
         double dw = Math.max(widthA, widthB)*ratio;
         int maxWidth = Double.valueOf(dw).intValue();
-
 
         double heightA = Math.sqrt(Math.pow(tr.x - br.x, 2) + Math.pow(tr.y - br.y, 2));
         double heightB = Math.sqrt(Math.pow(tl.x - bl.x, 2) + Math.pow(tl.y - bl.y, 2));

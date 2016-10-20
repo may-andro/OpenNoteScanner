@@ -55,15 +55,12 @@ import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
-import android.view.animation.AnimationUtils;
 import android.view.animation.ScaleAnimation;
 import android.view.animation.TranslateAnimation;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ViewFlipper;
 
 import com.github.fafaldo.fabtoolbar.widget.FABToolbarLayout;
 import com.todobom.opennotescanner.helpers.CustomOpenCVLoader;
@@ -118,53 +115,11 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
     private static final int RESUME_PERMISSIONS_REQUEST_CAMERA = 11;
 
-    private final Handler mHideHandler = new Handler();
-    private View mContentView;
-    private final Runnable mHidePart2Runnable = new Runnable() {
-        @SuppressLint("InlinedApi")
-        @Override
-        public void run() {
-            // Delayed removal of status and navigation bar
-
-            // Note that some of these constants are new as of API 16 (Jelly Bean)
-            // and API 19 (KitKat). It is safe to use them, as they are inlined
-            // at compile-time and do nothing on earlier devices.
-
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
-        }
-    };
-
-    private View mControlsView;
-    private final Runnable mShowPart2Runnable = new Runnable() {
-        @Override
-        public void run() {
-            // Delayed display of UI elements
-            ActionBar actionBar = getActionBar();
-            if (actionBar != null) {
-                actionBar.show();
-            }
-            mControlsView.setVisibility(View.VISIBLE);
-        }
-    };
-    private boolean mVisible;
-    private final Runnable mHideRunnable = new Runnable() {
-        @Override
-        public void run() {
-            hide();
-        }
-    };
-
     private static final String TAG = "OpenNoteScannerActivity";
     private MediaPlayer _shootMP = null;
 
     private boolean safeToTakePicture;
-    Button scanDocButton;
+    ImageView scanDocButton;
     TextView textViewWrongAngle,textViewWrongMessage1,textViewWrongMessage2,textViewMessage;
     private HandlerThread mImageThread;
     private ImageProcessor mImageProcessor;
@@ -210,8 +165,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
     FloatingActionButton galleryButton;
     ImageView autoModeButton,infoButton,filterModeButton,flashModeButton;
 
-    ViewFlipper mFlipper;
-
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -233,37 +186,16 @@ public class OpenNoteScannerActivity extends AppCompatActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_open_note_scanner);
 
         mSharedPref = PreferenceManager.getDefaultSharedPreferences(this);
-
-        if (mSharedPref.getBoolean("isFirstRun",true) && !mSharedPref.getBoolean("usage_stats",false)) {
-            /*statsOptInDialog();*/
-            CustomAlertDialogFragment customAlertDialogFragment = new CustomAlertDialogFragment(this);
-            customAlertDialogFragment.show( getSupportFragmentManager(), "");
-        }
-
-        setContentView(R.layout.activity_open_note_scanner);
 
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         mMagnetometer = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
 
-        mVisible = true;
-        mControlsView = findViewById(R.id.fullscreen_content_controls);
-        mContentView = findViewById(R.id.surfaceView);
         mHud = (HUDCanvasView) findViewById(R.id.hud);
         mWaitSpinner = findViewById(R.id.wait_spinner);
-
-
-        // Set up the user interaction to manually show or hide the system UI.
-        mContentView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                toggle();
-            }
-        });
-
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         Display display = getWindowManager().getDefaultDisplay();
         android.graphics.Point size = new android.graphics.Point();
@@ -273,14 +205,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
         textViewMessage = (TextView)findViewById(R.id.text_message);
 
-        textViewWrongAngle = (TextView)findViewById(R.id.text_wrong_angle);
-        textViewWrongAngle.setText("For best experience, place camera and the document on horizontal level.");
-        textViewWrongMessage1 = (TextView)findViewById(R.id.text_wrong_message);
-        textViewWrongMessage1.setText("Use caontrastical background.");
-        textViewWrongMessage2 = (TextView)findViewById(R.id.text_wrong_message2);
-        textViewWrongMessage2.setText("Couldn't find document. Go closer.");
-
-        scanDocButton = (Button) findViewById(R.id.scanDocButton);
+        scanDocButton = (ImageView) findViewById(R.id.scanDocButton);
 
         scanDocButton.setOnClickListener(new View.OnClickListener() {
 
@@ -288,19 +213,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             public void onClick(View v) {
                 requestPicture();
                 waitSpinnerVisible();
-                /*if (scanClicked) {
-                    requestPicture();
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        scanDocButton.setBackgroundTintList(null);
-                    }
-                    waitSpinnerVisible();
-                } else {
-                    scanClicked = true;
-                    Toast.makeText(getApplicationContext(), R.string.scanningToast, Toast.LENGTH_LONG).show();
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        v.setBackgroundTintList(ColorStateList.valueOf(0x7F60FF60));
-                    }
-                }*/
             }
         });
 
@@ -315,7 +227,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         });
 
         filterModeButton = (ImageView) findViewById(R.id.filterModeButton);
-
         filterModeButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -331,7 +242,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         });
 
         flashModeButton = (ImageView) findViewById(R.id.flashModeButton);
-
         flashModeButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -344,7 +254,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
 
         autoModeButton = (ImageView) findViewById(R.id.autoModeButton);
-
         autoModeButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -356,7 +265,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         });
 
         galleryButton = (FloatingActionButton) findViewById(R.id.galleryButton);
-
         galleryButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -367,7 +275,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         });
 
         mFabToolbar = (FABToolbarLayout) findViewById(R.id.fabtoolbar);
-
         fabToolbarButton = (FloatingActionButton) findViewById(R.id.fabtoolbar_fab);
         fabToolbarButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -383,33 +290,32 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             }
         });
 
-        mFlipper = ((ViewFlipper) findViewById(R.id.flipper));
-        mFlipper.startFlipping();
-        mFlipper.setInAnimation(AnimationUtils.loadAnimation(this,android.R.anim.fade_in));
-        mFlipper.setOutAnimation(AnimationUtils.loadAnimation(this, android.R.anim.fade_out));
+        if(autoMode){
+            scanDocButton.setVisibility(View.GONE);
+        }else{
+            scanDocButton.setVisibility(View.VISIBLE);
+        }
 
+        boolean isFirstTime = mSharedPref.getBoolean("isFirstRun",true);
+        if (isFirstTime) {
+            setGalleryIntroLogic();
+        }
 
-
-        //setGalleryIntroLogic();
+        boolean isNeverShowAgain = mSharedPref.getBoolean("usage_stats",false);
+        if( !isNeverShowAgain && !isFirstTime){
+            CustomAlertDialogFragment customAlertDialogFragment = new CustomAlertDialogFragment(OpenNoteScannerActivity.this);
+            customAlertDialogFragment.show( getSupportFragmentManager(), "");
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
 
-        scanDocButton.setEnabled(false);
+        //scanDocButton.setEnabled(false);
 
         mSensorManager.registerListener(this, mAccelerometer,SensorManager.SENSOR_DELAY_NORMAL);
         mSensorManager.registerListener(this, mMagnetometer,SensorManager.SENSOR_DELAY_NORMAL);
-
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-        );
 
         Log.d(TAG, "resuming");
 
@@ -483,7 +389,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         Display display = getWindowManager().getDefaultDisplay();
         android.graphics.Point size = new android.graphics.Point();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            display.getRealSize(size);
+            //display.getRealSize(size);
         }
 
         int displayWidth = Math.min(size.y, size.x);
@@ -494,41 +400,15 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         int previewHeight = displayHeight;
 
         if ( displayRatio > previewRatio ) {
-            ViewGroup.LayoutParams surfaceParams = mSurfaceView.getLayoutParams();
+            //ViewGroup.LayoutParams surfaceParams = mSurfaceView.getLayoutParams();
             previewHeight = (int) ( (float) size.y/displayRatio*previewRatio);
-            surfaceParams.height = previewHeight;
-            mSurfaceView.setLayoutParams(surfaceParams);
+            //surfaceParams.height = previewHeight;
+            //mSurfaceView.setLayoutParams(surfaceParams);
 
             mHud.getLayoutParams().height = previewHeight;
         }
 
         int hotAreaWidth = displayWidth / 4;
-        int hotAreaHeight = previewHeight / 2 - hotAreaWidth;
-
-        ImageView angleNorthWest = (ImageView) findViewById(R.id.nw_angle);
-        RelativeLayout.LayoutParams paramsNW = (RelativeLayout.LayoutParams) angleNorthWest.getLayoutParams();
-        paramsNW.leftMargin = hotAreaWidth - paramsNW.width;
-        paramsNW.topMargin = hotAreaHeight - paramsNW.height;
-        angleNorthWest.setLayoutParams(paramsNW);
-
-        ImageView angleNorthEast = (ImageView) findViewById(R.id.ne_angle);
-        RelativeLayout.LayoutParams paramsNE = (RelativeLayout.LayoutParams) angleNorthEast.getLayoutParams();
-        paramsNE.leftMargin = displayWidth - hotAreaWidth;
-        paramsNE.topMargin = hotAreaHeight - paramsNE.height;
-        angleNorthEast.setLayoutParams(paramsNE);
-
-        ImageView angleSouthEast = (ImageView) findViewById(R.id.se_angle);
-        RelativeLayout.LayoutParams paramsSE = (RelativeLayout.LayoutParams) angleSouthEast.getLayoutParams();
-        paramsSE.leftMargin = displayWidth - hotAreaWidth;
-        paramsSE.topMargin = previewHeight - hotAreaHeight;
-        angleSouthEast.setLayoutParams(paramsSE);
-
-        ImageView angleSouthWest = (ImageView) findViewById(R.id.sw_angle);
-        RelativeLayout.LayoutParams paramsSW = (RelativeLayout.LayoutParams) angleSouthWest.getLayoutParams();
-        paramsSW.leftMargin = hotAreaWidth - paramsSW.width;
-        paramsSW.topMargin = previewHeight - hotAreaHeight;
-        angleSouthWest.setLayoutParams(paramsSW);
-
 
         Camera.Size maxRes = getMaxPictureResolution(previewRatio);
         if ( maxRes != null) {
@@ -649,7 +529,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         // Trigger the initial hide() shortly after the activity has been
         // created, to briefly hint to the user that UI controls
         // are available.
-        delayedHide(100);
+        //delayedHide(100);
     }
 
     @Override
@@ -678,6 +558,7 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         }
     }
 
+    int count = 3;
     ///////////////////sensor/////////////////////
     private float getDirection() {
         float[] temp = new float[9];
@@ -691,23 +572,27 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
         //System.out.println("OpenNoteScannerActivity.getDirection="+Math.abs(Math.toDegrees(value[1])) );
 
-        if( Math.abs(Math.toDegrees(value[1])) > 70.0  &&  Math.abs(Math.toDegrees(value[1]))<87.0 ){
-            if(autoMode){
-                scanDocButton.setVisibility(View.GONE);
-                mFlipper.setVisibility(View.GONE);
+        if(!autoMode){
+            scanDocButton.setVisibility(View.VISIBLE);
+
+            if( Math.abs(Math.toDegrees(value[1])) > 70.0  &&  Math.abs(Math.toDegrees(value[1]))<87.0)
+            {
+                buttonGreenColor();
+                scanDocButton.setEnabled(true);
             }else{
-                scanDocButton.setVisibility(View.VISIBLE);
-                mFlipper.setVisibility(View.GONE);
+                if(count == 0){
+                    showToast("Place camera parallel to horizontal surface.");
+                    count=100;
+                }
+                count--;
+                buttonRedColor();
+                scanDocButton.setEnabled(false);
             }
+
         }else{
-            if(autoMode){
-                scanDocButton.setVisibility(View.GONE);
-                mFlipper.setVisibility(View.GONE);
-            }else{
-                scanDocButton.setVisibility(View.GONE);
-                mFlipper.setVisibility(View.VISIBLE);
-            }
+            scanDocButton.setVisibility(View.GONE);
         }
+
 
         return value[1];
     }
@@ -886,6 +771,14 @@ public class OpenNoteScannerActivity extends AppCompatActivity
         System.out.println("OpenNoteScannerActivity.showButton");
     }
 
+    public void buttonGreenColor(){
+        scanDocButton.setColorFilter(0xFF009688);
+    }
+
+    public void buttonRedColor(){
+        scanDocButton.setColorFilter(0xFFF44336);
+    }
+
     public void hideButton(){
         runOnUiThread(new Runnable() {
             @Override
@@ -901,49 +794,56 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             @Override
             public void run() {
                 textViewMessage.setText(msg);
+                Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        textViewMessage.setText("");
+                    }
+                }, 6000);
             }
         });
     }
 
-    private void toggle() {
+    /*private void toggle() {
         if (mVisible) {
             hide();
         } else {
             show();
         }
-    }
+    }*/
 
-    private void hide() {
+    /*private void hide() {
         // Hide UI first
         ActionBar actionBar = getActionBar();
         if (actionBar != null) {
             actionBar.hide();
         }
-        mControlsView.setVisibility(View.GONE);
+        //mControlsView.setVisibility(View.GONE);
         mVisible = false;
 
         // Schedule a runnable to remove the status and navigation bar after a delay
         mHideHandler.removeCallbacks(mShowPart2Runnable);
         mHideHandler.postDelayed(mHidePart2Runnable, UI_ANIMATION_DELAY);
-    }
+    }*/
 
-    @SuppressLint("InlinedApi")
+    /*@SuppressLint("InlinedApi")
     private void show() {
         mVisible = true;
 
         // Schedule a runnable to display UI elements after a delay
         mHideHandler.removeCallbacks(mHidePart2Runnable);
         mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
-    }
+    }*/
 
     /**
      * Schedules a call to hide() in [delay] milliseconds, canceling any
      * previously scheduled calls.
      */
-    private void delayedHide(int delayMillis) {
+    /*private void delayedHide(int delayMillis) {
         mHideHandler.removeCallbacks(mHideRunnable);
         mHideHandler.postDelayed(mHideRunnable, delayMillis);
-    }
+    }*/
 
 
     public void waitSpinnerVisible() {
@@ -952,16 +852,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             public void run() {
                 mWaitSpinner.setVisibility(View.VISIBLE);
                 scanDocButton.setEnabled(false);
-            }
-        });
-
-    }
-
-    public void waitTimerVisible(final String text) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                scanDocButton.setText(text);
             }
         });
 
@@ -1305,9 +1195,8 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             ViewPager viewPager = (ViewPager) rootView.findViewById(R.id.viewpager_advertisement);
             TabLayout tabLayoutAdvertisement = (TabLayout) rootView.findViewById(R.id.tab_layout_advertisement);
             ViewPagerAdapter adapter = new ViewPagerAdapter(getChildFragmentManager());
-            adapter.addFrag(new FragmentForWelcomePage1());
-            adapter.addFrag(new FragmentForWelcomePage1());
-            adapter.addFrag(new FragmentForWelcomePage1());
+            adapter.addFrag(new FragmentForInstructionPage1());
+            adapter.addFrag(new FragmentForInstructionPage2());
             viewPager.setAdapter(adapter);
 
             tabLayoutAdvertisement.setupWithViewPager(viewPager);
@@ -1317,7 +1206,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             done.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     mSharedPref.edit().putBoolean("usage_stats",false).commit();
-                    mSharedPref.edit().putBoolean("isFirstRun",false).commit();
                     dismiss();
                 }
             });
@@ -1327,7 +1215,6 @@ public class OpenNoteScannerActivity extends AppCompatActivity
             neverShow.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     mSharedPref.edit().putBoolean("usage_stats",true).commit();
-                    mSharedPref.edit().putBoolean("isFirstRun",false).commit();
                     dismiss();
                 }
             });
@@ -1388,22 +1275,33 @@ public class OpenNoteScannerActivity extends AppCompatActivity
 
 
     @SuppressLint("ValidFragment")
-    public class FragmentForWelcomePage1 extends Fragment{
-
-        TextView titleFragment1,messageFragment1;
-
+    public class FragmentForInstructionPage1 extends Fragment{
         @Override
         @Nullable
         public View onCreateView(LayoutInflater inflater,
                                  @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-            View view =inflater.inflate(R.layout.fragmentinstructionpage1, container,false);
+            return inflater.inflate(R.layout.fragment_instruction_page1, container,false);
+        }
+    }
 
-            titleFragment1=(TextView) view.findViewById(R.id.titleFragment);
-            titleFragment1.setText("Instruction");
-            messageFragment1=(TextView) view.findViewById(R.id.messageFragment);
-            messageFragment1.setText("1.Place the document in contastical background. /n2.Click the menu icon for more configurable options. /n3.Gallery button takes you to your pictures.");
+    @SuppressLint("ValidFragment")
+    public class FragmentForInstructionPage2 extends Fragment{
+        @Override
+        @Nullable
+        public View onCreateView(LayoutInflater inflater,
+                                 @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+            return inflater.inflate(R.layout.fragment_instruction_page2, container,false);
+        }
+    }
 
-            return view;
+
+    @SuppressLint("ValidFragment")
+    public class FragmentForInstructionPage3 extends Fragment{
+        @Override
+        @Nullable
+        public View onCreateView(LayoutInflater inflater,
+                                 @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+            return inflater.inflate(R.layout.fragment_instruction_page3, container,false);
         }
     }
 
@@ -1417,12 +1315,11 @@ public class OpenNoteScannerActivity extends AppCompatActivity
     }
 
 
-    private MaterialTapTargetPrompt gellaryTargetPromptBuilder;
     private void setGalleryIntroLogic(){
-        gellaryTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+        new MaterialTapTargetPrompt.Builder(OpenNoteScannerActivity.this)
                 .setTarget(galleryButton)
                 .setPrimaryText("Your Pictures")
-                .setSecondaryText("You can access your clicked images here.")
+                .setSecondaryText("You can access your clicked images through here.")
                 .setAnimationInterpolator(new FastOutSlowInInterpolator())
                 .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
                 .setOnHidePromptListener(new MaterialTapTargetPrompt.OnHidePromptListener()
@@ -1435,18 +1332,19 @@ public class OpenNoteScannerActivity extends AppCompatActivity
                     public void onHidePromptComplete()
                     {
                         mFabToolbar.show();
+
+                        mSharedPref.edit().putBoolean("isFirstRun",false).commit();
                         setautoSettingIntroLogic();
                     }
                 })
                 .show();
     }
 
-    private MaterialTapTargetPrompt autoSettingTargetPromptBuilder;
     private void setautoSettingIntroLogic(){
-        autoSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+        new MaterialTapTargetPrompt.Builder(this)
                 .setTarget(autoModeButton)
                 .setPrimaryText("Auto Mode")
-                .setSecondaryText("This will capture images automatically when there is a contastical background.")
+                .setSecondaryText("This will capture images automatically when the document is detected.")
                 .setAnimationInterpolator(new FastOutSlowInInterpolator())
                 .setIcon(R.drawable.ic_find_in_page)
                 .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
@@ -1465,12 +1363,11 @@ public class OpenNoteScannerActivity extends AppCompatActivity
                 .show();
     }
 
-    private MaterialTapTargetPrompt flashSettingTargetPromptBuilder;
     private void setFlashSettingIntroLogic(){
-        processingSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+        new MaterialTapTargetPrompt.Builder(this)
                 .setTarget(flashModeButton)
                 .setPrimaryText("Camera Flash")
-                .setSecondaryText("You can turn on your camera flash using this button.")
+                .setSecondaryText("You can turn on your camera flash through here.")
                 .setAnimationInterpolator(new FastOutSlowInInterpolator())
                 .setIcon(R.drawable.ic_flash_on_24dp)
                 .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
@@ -1489,12 +1386,11 @@ public class OpenNoteScannerActivity extends AppCompatActivity
                 .show();
     }
 
-    private MaterialTapTargetPrompt processingSettingTargetPromptBuilder;
     private void setProcessingSettingIntroLogic(){
-        processingSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+        new MaterialTapTargetPrompt.Builder(this)
                 .setTarget(filterModeButton)
                 .setPrimaryText("Image Filtering.")
-                .setSecondaryText("You can enable this to filter images.")
+                .setSecondaryText("You can enable this to filter images..")
                 .setAnimationInterpolator(new FastOutSlowInInterpolator())
                 .setIcon(R.drawable.ic_photo_filter_white_24dp)
                 .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
@@ -1513,12 +1409,11 @@ public class OpenNoteScannerActivity extends AppCompatActivity
                 .show();
     }
 
-    private MaterialTapTargetPrompt infoSettingTargetPromptBuilder;
     private void setInfoSettingIntroLogic(){
-        infoSettingTargetPromptBuilder = new MaterialTapTargetPrompt.Builder(this)
+        new MaterialTapTargetPrompt.Builder(this)
                 .setTarget(infoButton)
                 .setPrimaryText("Tutorial")
-                .setSecondaryText("You can visit tutorial to underatnad the upload process..")
+                .setSecondaryText("You can see the tutorial to get perfect picture for the upload process here...")
                 .setAnimationInterpolator(new FastOutSlowInInterpolator())
                 .setIcon(R.drawable.ic_info_outline_white_24px)
                 .setMaxTextWidth(R.dimen.tap_target_menu_max_width)
@@ -1531,7 +1426,8 @@ public class OpenNoteScannerActivity extends AppCompatActivity
                     @Override
                     public void onHidePromptComplete()
                     {
-
+                        CustomAlertDialogFragment customAlertDialogFragment = new CustomAlertDialogFragment(OpenNoteScannerActivity.this);
+                        customAlertDialogFragment.show( getSupportFragmentManager(), "");
                     }
                 })
                 .show();

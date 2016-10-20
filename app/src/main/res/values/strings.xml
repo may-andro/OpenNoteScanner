@@ -50,4 +50,24 @@
     <string name="action_tag">Tag</string>
     <string name="storage_folder">Storage Folder</string>
     <string name="storage_folder_summary">Sets where the scanned files should be stored</string>
+
+    <string name="instruction_page1_title">Automatic Mode.</string>
+    <string name="instruction_page1_message">In this mode pictue is taken automatically without any button clicks.\n
+                                            1.Place the camera parallel to document on a horizontal surface.\n
+                                            2.Adjust the camera for the best perspective of document.\n
+                                            3.Make sure the background have contrast color(White document on black background surface).\n
+                                            4.Picture will be taken when the document is found.</string>
+    <string name="instruction_page2_title">Manual Mode</string>
+    <string name="instruction_page2_message">In this mode pictue is taken by user\'s button clicks.\n
+                                            1.Place the camera parallel to document on a horizontal surface.\n
+                                            2.Adjust the camera for the best perspective of document.\n
+                                            3.Make sure the background have contrast color(White document on black background surface).\n
+                                            4.Picture will be taken when user clicks the capture icon..</string>
+
+    <string name="instruction_page3_title">Settings</string>
+    <string name="instruction_page3message">The quick setting on the top lets you access some camera access features..\n
+                                            Place the camera parallel to document on a horizontal surface.\n
+                                            2.Adjust the camera for the best perspective of document.\n
+                                            3.Make sure the background have contrast color(White document on black background surface).\n
+                                            4.Picture will be taken when user clicks the capture icon..</string>
 </resources>

@@ -12,6 +12,7 @@
         android:gravity="left"
         android:layout_marginBottom="16dp"
         android:textSize="18sp"
+        android:text="@string/instruction_page2_title"
         android:textStyle="normal" />
 
     <TextView
@@ -19,6 +20,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:gravity="left|center_horizontal"
-        android:textStyle="normal" />
+        android:textStyle="normal"
+        android:text="@string/instruction_page2_message"/>
 
 </LinearLayout>
